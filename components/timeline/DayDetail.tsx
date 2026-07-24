@@ -1,7 +1,6 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ExternalLink } from "lucide-react";
 import type { DayCluster } from "../../lib/analyze";
 import { SEVERITY_COLOR, SEVERITY_LABEL } from "../../lib/palette";
 
@@ -60,16 +59,6 @@ export default function DayDetail({ cluster }: { cluster: DayCluster | null }) {
                     <span className="font-mono text-[10px] text-graphite/40">
                       {event.sourceFileName} · row {event.rowIndex}
                     </span>
-                    {event.pdfUrl && (
-                      <a
-                        href={event.pdfUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 font-mono text-[10px] text-teal hover:underline"
-                      >
-                        source <ExternalLink size={10} />
-                      </a>
-                    )}
                   </div>
                   {(event.providers.length > 0 || event.facility) && (
                     <p className="mb-1 text-xs text-ink/60">
