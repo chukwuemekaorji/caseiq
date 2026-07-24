@@ -1,15 +1,33 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Loader2, Plus, Trash2 } from "lucide-react";
 import { useIdentityContext } from "@/components/IdentityProvider";
 import { useCaseList } from "@/hooks/useCaseList";
+import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
 import ReadingBuddy from "@/components/illustrations/ReadingBuddy";
 
 export default function CaseListPage() {
   const identity = useIdentityContext();
-  const { cases, loading, error } = useCaseList();
+  const { cases, loading, error, refresh } = useCaseList();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (id: string, label: string) => {
+    const confirmed = window.confirm(
+      `Delete "${label}"? This permanently removes the case and everything in it — timeline, evidence, story, presentations. This can't be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeletingId(id);
+    try {
+      const res = await fetchWithTimeout(`/api/cases/${id}`, { method: "DELETE" });
+      if (res.ok) await refresh();
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-film text-ink">
@@ -53,25 +71,35 @@ export default function CaseListPage() {
           </div>
         ) : (
           <div className="divide-y divide-ink/10 border-t border-ink/10">
-            {cases.map((c) => (
-              <Link
-                key={c.id}
-                href={`/cases/${c.id}`}
-                className="flex items-center justify-between gap-4 py-4 transition-colors hover:bg-white/40"
-              >
-                <div>
-                  <p className="font-display text-xl uppercase tracking-tight">
-                    {c.clientName ?? c.caseName ?? "Untitled case"}
-                  </p>
-                  <p className="font-mono text-xs text-graphite">
-                    {c.matterNumber ? `${c.matterNumber} · ` : ""}
-                    {c.eventCount} record{c.eventCount === 1 ? "" : "s"} · created{" "}
-                    {new Date(c.createdAt).toLocaleDateString()}
-                  </p>
+            {cases.map((c) => {
+              const label = c.clientName ?? c.caseName ?? "Untitled case";
+              return (
+                <div key={c.id} className="flex items-center justify-between gap-4 py-4 transition-colors hover:bg-white/40">
+                  <Link href={`/cases/${c.id}`} className="min-w-0 flex-1">
+                    <p className="truncate font-display text-xl uppercase tracking-tight">{label}</p>
+                    <p className="font-mono text-xs text-graphite">
+                      {c.matterNumber ? `${c.matterNumber} · ` : ""}
+                      {c.eventCount} record{c.eventCount === 1 ? "" : "s"} · created{" "}
+                      {new Date(c.createdAt).toLocaleDateString()}
+                    </p>
+                  </Link>
+                  <div className="flex shrink-0 items-center gap-4">
+                    <Link href={`/cases/${c.id}`} className="font-mono text-xs uppercase tracking-widest text-teal">
+                      Open →
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(c.id, label)}
+                      disabled={deletingId === c.id}
+                      title="Delete case"
+                      className="text-graphite transition-colors hover:text-coral disabled:opacity-40"
+                    >
+                      {deletingId === c.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    </button>
+                  </div>
                 </div>
-                <span className="font-mono text-xs uppercase tracking-widest text-teal">Open →</span>
-              </Link>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>

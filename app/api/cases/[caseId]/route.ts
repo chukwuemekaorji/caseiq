@@ -47,3 +47,19 @@ export async function PATCH(req: Request, context: { params: Promise<{ caseId: s
 
   return NextResponse.json({ ok: true });
 }
+
+export async function DELETE(_req: Request, context: { params: Promise<{ caseId: string }> }) {
+  const { caseId } = await context.params;
+
+  const [existing] = await db.select({ id: cases.id }).from(cases).where(eq(cases.id, caseId)).limit(1);
+  if (!existing) {
+    return NextResponse.json({ error: "Case not found." }, { status: 404 });
+  }
+
+  // Every other table (import batches, medical records, timeline events, client
+  // context, evidence, compositions, narratives, presentations/slides) references
+  // cases.id with onDelete: "cascade" — deleting the case row is enough.
+  await db.delete(cases).where(eq(cases.id, caseId));
+
+  return NextResponse.json({ ok: true });
+}
