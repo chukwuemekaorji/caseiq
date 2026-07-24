@@ -4,20 +4,27 @@ const MODEL = "claude-sonnet-5";
 export interface AnthropicCallOptions {
   system: string;
   user: string;
-  json?: boolean;
+  /** JSON schema for structured output. Omit for a plain-text response. */
+  schema?: object;
 }
 
 export type AnthropicResult =
   | { ok: true; text: string }
   | { ok: false; status: number; body: string };
 
-export async function callAnthropic({
-  system,
-  user,
-  json = false,
-}: AnthropicCallOptions): Promise<AnthropicResult> {
+export async function callAnthropic({ system, user, schema }: AnthropicCallOptions): Promise<AnthropicResult> {
   const key = process.env.ANTHROPIC_API_KEY!;
-  const prefill = json ? "[" : null;
+
+  const body: Record<string, unknown> = {
+    model: MODEL,
+    max_tokens: 2048,
+    system,
+    messages: [{ role: "user", content: user }],
+  };
+
+  if (schema) {
+    body.output_config = { format: { type: "json_schema", schema } };
+  }
 
   let upstream: Response;
   try {
@@ -28,15 +35,7 @@ export async function callAnthropic({
         "x-api-key": key,
         "anthropic-version": "2023-06-01",
       },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 2048,
-        system,
-        messages: [
-          { role: "user", content: user },
-          ...(prefill ? [{ role: "assistant", content: prefill }] : []),
-        ],
-      }),
+      body: JSON.stringify(body),
     });
   } catch {
     return { ok: false, status: 502, body: JSON.stringify({ error: "Could not reach Anthropic." }) };
@@ -64,5 +63,5 @@ export async function callAnthropic({
     return { ok: false, status: 502, body: JSON.stringify({ error: "Anthropic returned an empty response." }) };
   }
 
-  return { ok: true, text: prefill ? prefill + text : text };
+  return { ok: true, text };
 }

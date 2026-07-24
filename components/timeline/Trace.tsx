@@ -201,40 +201,49 @@ export default function Trace({
         })}
 
         {activeNode && (
-          <g pointerEvents="none">
-            <line
-              x1={activeNode.x}
-              x2={activeNode.x}
-              y1={activeNode.y - 12}
-              y2={activeNode.y - 52}
-              stroke="#0B1520"
-              strokeWidth={0.75}
-            />
-            <text
-              x={activeNode.x}
-              y={activeNode.y - 60}
-              textAnchor="middle"
-              className="font-mono"
-              fontSize={11}
-              fill="#0B1520"
-            >
-              {activeNode.cluster.date.toLocaleDateString()}
-            </text>
-            <text
-              x={activeNode.x}
-              y={activeNode.y - 74}
-              textAnchor="middle"
-              className="font-mono"
-              fontSize={9}
-              fill="#8A939B"
-              letterSpacing="0.1em"
-            >
-              {activeNode.cluster.events.length} RECORD
-              {activeNode.cluster.events.length > 1 ? "S" : ""}
-            </text>
-          </g>
+          <line
+            x1={activeNode.x}
+            x2={activeNode.x}
+            y1={activeNode.y - 12}
+            y2={activeNode.y - 52}
+            stroke="#0B1520"
+            strokeWidth={0.75}
+            pointerEvents="none"
+          />
         )}
       </svg>
+
+      {activeNode && (
+        <div
+          className="pointer-events-none absolute z-10 w-72 -translate-x-1/2 border border-ink/15 bg-film px-3 py-2.5 shadow-lg"
+          style={{
+            left: Math.min(Math.max(activeNode.x, 144), width - 144),
+            top: Math.max(activeNode.y - MAX_THICKNESS / 2 - 175, 0),
+          }}
+        >
+          <div className="mb-1.5 flex items-baseline justify-between gap-2">
+            <p className="font-mono text-[11px] text-ink">{activeNode.cluster.date.toLocaleDateString()}</p>
+            <p className="font-mono text-[9px] uppercase tracking-widest text-graphite">
+              {activeNode.cluster.events.length} record{activeNode.cluster.events.length > 1 ? "s" : ""}
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            {activeNode.cluster.events.slice(0, 3).map((event) => (
+              <div key={event.id} className="border-t border-ink/10 pt-1.5 first:border-0 first:pt-0">
+                <p className="font-mono text-[9px] uppercase tracking-widest text-graphite">
+                  {event.recordType ?? "Record"}
+                </p>
+                <p className="line-clamp-2 text-xs leading-snug text-ink/85">{event.summary}</p>
+              </div>
+            ))}
+          </div>
+          {activeNode.cluster.events.length > 3 && (
+            <p className="mt-1.5 font-mono text-[9px] uppercase tracking-widest text-graphite">
+              +{activeNode.cluster.events.length - 3} more · click to see all
+            </p>
+          )}
+        </div>
+      )}
 
       {clusters.length > 1 && (
         <div className="mt-1 flex justify-between px-[56px] font-mono text-[10px] text-graphite">

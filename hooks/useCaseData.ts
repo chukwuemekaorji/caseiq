@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
-import type { CaseDraft, CaseRecord, MedicalEvent, ParseResult, Severity } from "../types";
+import type { CaseRecord, MedicalEvent, ParseResult, Severity } from "../types";
 import {
   classifySeverity,
   inferIncidentDate,
@@ -55,10 +55,13 @@ function fromDbEvent(row: DbTimelineEvent): MedicalEvent {
   };
 }
 
-export function useCaseData() {
-  const [caseId, setCaseId] = useState<string | null>(null);
+/** Drives a single case's timeline, given its ID. Case creation happens
+ * separately (the /new flow) — by the time this hook is used, the case and
+ * its first import already exist. */
+export function useCaseData(caseId: string) {
+  const [caseRecord, setCaseRecord] = useState<CaseRecord | null>(null);
   const [caseLoading, setCaseLoading] = useState(true);
-  const [caseDraft, setCaseDraft] = useState<CaseDraft | null>(null);
+  const [notFound, setNotFound] = useState(false);
   const [events, setEvents] = useState<MedicalEvent[]>([]);
   const [undated, setUndated] = useState<MedicalEvent[]>([]);
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
@@ -67,18 +70,19 @@ export function useCaseData() {
   const [overrides, setOverrides] = useState<Record<string, Severity>>({});
   const [saveError, setSaveError] = useState(false);
 
-  // On mount, try to hydrate the most recent case from the database so a
-  // chronology survives a refresh instead of resetting to the drop screen.
-  // This must never hang the app if the database is unreachable (offline,
-  // DB down) — fetchWithTimeout bounds it, and the try/finally below
-  // guarantees caseLoading always resolves so the drop screen still shows.
   useEffect(() => {
     let cancelled = false;
+    setCaseLoading(true);
+    setNotFound(false);
     (async () => {
       try {
-        const res = await fetchWithTimeout("/api/cases/current");
+        const res = await fetchWithTimeout(`/api/cases/${caseId}`);
+        if (res.status === 404) {
+          if (!cancelled) setNotFound(true);
+          return;
+        }
         if (!res.ok) {
-          setSaveError(true);
+          if (!cancelled) setSaveError(true);
           return;
         }
         const data = await res.json();
@@ -87,7 +91,7 @@ export function useCaseData() {
         const dbEvents = (data.events as DbTimelineEvent[]).map(fromDbEvent);
         const classified = dbEvents.map((event) => ({ ...event, severity: classifySeverity(event) }));
 
-        setCaseId(data.case.id);
+        setCaseRecord(data.case);
         setEvents(classified);
         setUndated([]);
         if (data.diagnostics) {
@@ -98,17 +102,14 @@ export function useCaseData() {
           });
         }
 
-        const caseRecord = data.case as CaseRecord;
-        setCaseDraft({ clientName: caseRecord.clientName ?? caseRecord.caseName ?? "Untitled case" });
-        if (caseRecord.incidentDate) {
-          setIncidentDateState(new Date(caseRecord.incidentDate));
+        const record = data.case as CaseRecord;
+        if (record.incidentDate) {
+          setIncidentDateState(new Date(record.incidentDate));
           setIncidentConfirmed(true);
         } else {
           setIncidentDateState(inferIncidentDate(classified)?.date ?? null);
         }
       } catch {
-        // Unreachable database (offline, DNS/connect timeout, DB down) — the
-        // app still works for this session, just starting from a blank case.
         if (!cancelled) setSaveError(true);
       } finally {
         if (!cancelled) setCaseLoading(false);
@@ -117,57 +118,25 @@ export function useCaseData() {
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  const startCase = useCallback((draft: CaseDraft) => {
-    setCaseDraft(draft);
-  }, []);
-
-  const load = useCallback(
-    (results: ParseResult[]) => {
-      const merged = mergeParseResults(results, 1);
-      const classified = merged.events.map((event) => ({ ...event, severity: classifySeverity(event) }));
-
-      setEvents(classified);
-      setUndated(merged.undated);
-      setImportSummary(summarizeImport(merged));
-      setIncidentDateState(inferIncidentDate(classified)?.date ?? null);
-      setIncidentConfirmed(false);
-      setOverrides({});
-
-      void fetchWithTimeout("/api/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...merged, clientName: caseDraft?.clientName, matterNumber: caseDraft?.matterNumber }),
-      })
-        .then((res) => (res.ok ? res.json() : Promise.reject(new Error("save failed"))))
-        .then((data) => {
-          if (data?.caseId) setCaseId(data.caseId);
-          setSaveError(false);
-        })
-        .catch(() => {
-          // Persistence failing shouldn't block using the app for this session —
-          // the timeline above is already rendered from local state.
-          setSaveError(true);
-        });
-    },
-    [caseDraft]
-  );
+  }, [caseId]);
 
   const addRecords = useCallback(
     (results: ParseResult[]) => {
-      const nextRecordNumber = Math.max(0, ...events.map((event) => event.recordNumber), ...undated.map((event) => event.recordNumber)) + 1;
+      const nextRecordNumber =
+        Math.max(0, ...events.map((event) => event.recordNumber), ...undated.map((event) => event.recordNumber)) + 1;
       const merged = mergeParseResults(results, nextRecordNumber);
       const classified = merged.events.map((event) => ({ ...event, severity: classifySeverity(event) }));
 
       setEvents((current) => [...current, ...classified]);
       setUndated((current) => [...current, ...merged.undated]);
-      setImportSummary((current) => (current ? combineImportSummaries(current, summarizeImport(merged)) : summarizeImport(merged)));
+      setImportSummary((current) =>
+        current ? combineImportSummaries(current, summarizeImport(merged)) : summarizeImport(merged)
+      );
 
       void fetchWithTimeout("/api/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...merged, caseId: caseId ?? undefined }),
+        body: JSON.stringify({ ...merged, caseId }),
       })
         .then((res) => (res.ok ? setSaveError(false) : setSaveError(true)))
         .catch(() => {
@@ -178,37 +147,23 @@ export function useCaseData() {
     [events, undated, caseId]
   );
 
-  const reset = useCallback(() => {
-    setCaseId(null);
-    setCaseDraft(null);
-    setEvents([]);
-    setUndated([]);
-    setImportSummary(null);
-    setIncidentDateState(null);
-    setIncidentConfirmed(false);
-    setOverrides({});
-  }, []);
-
   const setIncidentDate = useCallback(
     (date: Date) => {
       setIncidentDateState(date);
-      if (caseId) {
-        void fetchWithTimeout(`/api/cases/${caseId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ incidentDate: date.toISOString().slice(0, 10) }),
-        })
-          .then((res) => (res.ok ? setSaveError(false) : setSaveError(true)))
-          .catch(() => {
-            // Best-effort — the confirmed date still applies for this session either way.
-            setSaveError(true);
-          });
-      }
+      void fetchWithTimeout(`/api/cases/${caseId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ incidentDate: date.toISOString().slice(0, 10) }),
+      })
+        .then((res) => (res.ok ? setSaveError(false) : setSaveError(true)))
+        .catch(() => {
+          // Best-effort — the confirmed date still applies for this session either way.
+          setSaveError(true);
+        });
     },
     [caseId]
   );
 
-  const parsed = events.length > 0 || undated.length > 0;
   const guess = useMemo(() => inferIncidentDate(events), [events]);
 
   const visibleEvents: MedicalEvent[] = useMemo(() => {
@@ -229,10 +184,9 @@ export function useCaseData() {
   }, []);
 
   return {
-    caseId,
+    caseRecord,
     caseLoading,
-    caseDraft,
-    parsed,
+    notFound,
     importSummary,
     saveError,
     events: visibleEvents,
@@ -248,9 +202,6 @@ export function useCaseData() {
     setIncidentDate,
     setIncidentConfirmed,
     setSeverity,
-    startCase,
-    load,
     addRecords,
-    reset,
   };
 }

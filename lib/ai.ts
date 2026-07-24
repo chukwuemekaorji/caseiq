@@ -5,14 +5,11 @@ const ENDPOINT = "/api/anthropic";
 interface CallOptions {
   system: string;
   user: string;
-  json?: boolean;
+  /** JSON schema for structured output. Omit for a plain-text response. */
+  schema?: object;
 }
 
-export async function callModel({
-  system,
-  user,
-  json = false,
-}: CallOptions): Promise<string> {
+export async function callModel({ system, user, schema }: CallOptions): Promise<string> {
   const res = await fetch(ENDPOINT, {
     method: "POST",
     headers: {
@@ -21,7 +18,7 @@ export async function callModel({
     body: JSON.stringify({
       system,
       user,
-      json,
+      schema,
     }),
   });
 
@@ -133,16 +130,27 @@ export interface AIKeyMoment {
   why: string;
 }
 
+const KEY_MOMENTS_SCHEMA = {
+  type: "array",
+  items: {
+    type: "object",
+    properties: {
+      record: { type: "integer" },
+      title: { type: "string" },
+      why: { type: "string" },
+    },
+    required: ["record", "title", "why"],
+    additionalProperties: false,
+  },
+};
+
 export async function generateKeyMoments(context: string): Promise<AIKeyMoment[]> {
   const raw = await callModel({
     system: GROUNDING,
-    json: true,
+    schema: KEY_MOMENTS_SCHEMA,
     user: `Identify the five most significant events in this treatment history — the ones that carry the case.
 
-Return JSON only:
-[{"record": <number>, "title": "<six words max>", "why": "<one sentence, why it matters to the case>"}]
-
-The record number must be one that appears in the records below.
+Each entry needs a record number (one that appears in the records below), a title (six words max), and why it matters to the case (one sentence).
 
 RECORDS:
 ${context}`,
@@ -176,25 +184,37 @@ export interface Challenge {
   severity: "high" | "medium" | "low";
 }
 
+const STRESS_TEST_SCHEMA = {
+  type: "array",
+  items: {
+    type: "object",
+    properties: {
+      category: {
+        type: "string",
+        enum: ["gap", "causation", "preexisting", "consistency", "evidence"],
+      },
+      headline: { type: "string" },
+      argument: { type: "string" },
+      records: { type: "array", items: { type: "integer" } },
+      response: { type: "string" },
+      severity: { type: "string", enum: ["high", "medium", "low"] },
+    },
+    required: ["category", "headline", "argument", "records", "response", "severity"],
+    additionalProperties: false,
+  },
+};
+
 export async function runStressTest(context: string, gapSummary: string): Promise<Challenge[]> {
   const raw = await callModel({
     system: `${GROUNDING}
 
 For this task you are acting as defence counsel reviewing the plaintiff's medical records for weaknesses. Be genuinely adversarial — find the real problems, not polite ones. Then, separately, give the plaintiff's attorney the strongest available response grounded in the same records.`,
-    json: true,
+    schema: STRESS_TEST_SCHEMA,
     user: `Review these records and identify the four to six strongest challenges the defence will raise.
 
 Categories: "gap" (treatment stopped), "causation" (link to incident is weak), "preexisting" (condition predates the incident), "consistency" (records contradict each other), "evidence" (something ordered but never documented as done).
 
-Return JSON only:
-[{
-  "category": "<one of the above>",
-  "headline": "<eight words max>",
-  "argument": "<what defence counsel will say, one or two sentences>",
-  "records": [<record numbers supporting this>],
-  "response": "<the strongest grounded rebuttal, or what evidence would be needed>",
-  "severity": "high" | "medium" | "low"
-}]
+For each: a headline (eight words max), the defence's argument (one or two sentences), the record numbers supporting it, the strongest grounded rebuttal (or what evidence would be needed), and a severity.
 
 Order by severity, highest first. Every entry must cite at least one real record.
 

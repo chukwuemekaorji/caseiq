@@ -7,12 +7,12 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => null);
-  const { system, user, json = false } = body ?? {};
+  const { system, user, schema } = body ?? {};
   if (typeof system !== "string" || typeof user !== "string") {
     return NextResponse.json({ error: "Invalid request payload." }, { status: 400 });
   }
 
-  const result = await callAnthropic({ system, user, json });
+  const result = await callAnthropic({ system, user, schema });
   if (!result.ok) {
     return new NextResponse(result.body, {
       status: result.status,
