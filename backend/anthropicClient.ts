@@ -17,7 +17,13 @@ export async function callAnthropic({ system, user, schema }: AnthropicCallOptio
 
   const body: Record<string, unknown> = {
     model: MODEL,
-    max_tokens: 2048,
+    max_tokens: 8192,
+    // This model enables extended thinking by default on harder prompts, and
+    // thinking tokens count against max_tokens — on a big case context, thinking
+    // alone can consume the entire budget and leave nothing for the actual
+    // answer (observed as an empty response). We never surface a reasoning
+    // trace to the user, so disable it outright.
+    thinking: { type: "disabled" },
     system,
     messages: [{ role: "user", content: user }],
   };
@@ -46,7 +52,7 @@ export async function callAnthropic({ system, user, schema }: AnthropicCallOptio
     return { ok: false, status: upstream.status, body: bodyText };
   }
 
-  let data: { content?: { type: string; text: string }[] };
+  let data: { content?: { type: string; text: string }[]; stop_reason?: string };
   try {
     data = JSON.parse(bodyText);
   } catch {

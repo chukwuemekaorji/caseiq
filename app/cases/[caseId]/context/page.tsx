@@ -92,7 +92,7 @@ export default function ClientContextPage() {
   const suggest = async (id: string) => {
     setSuggestingId(id);
     try {
-      const res = await fetchWithTimeout(`/api/cases/${caseId}/context/${id}/suggest`, { method: "POST" });
+      const res = await fetchWithTimeout(`/api/cases/${caseId}/context/${id}/suggest`, { method: "POST" }, 30000);
       if (res.ok) {
         const data = await res.json();
         setSuggestions((current) => ({ ...current, [id]: data.suggestion }));

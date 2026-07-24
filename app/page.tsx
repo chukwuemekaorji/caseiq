@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { BookOpen, Loader2, Plus, Trash2 } from "lucide-react";
 import { useIdentityContext } from "@/components/IdentityProvider";
 import { useCaseList } from "@/hooks/useCaseList";
 import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
@@ -39,6 +39,12 @@ export default function CaseListPage() {
             not you?
           </button>
         </span>
+        <Link
+          href="/docs"
+          className="inline-flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-graphite hover:text-ink"
+        >
+          <BookOpen size={12} /> Directions
+        </Link>
         <Link
           href="/new"
           className="inline-flex items-center gap-2 border border-ink px-3 py-1 font-mono text-xs uppercase tracking-widest"

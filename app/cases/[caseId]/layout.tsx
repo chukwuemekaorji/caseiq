@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { usePathname, useParams } from "next/navigation";
 import Link from "next/link";
-import { LayoutList } from "lucide-react";
+import { BookOpen, LayoutList } from "lucide-react";
 import { useIdentityContext } from "@/components/IdentityProvider";
 import { useCaseSummary } from "@/hooks/useCaseSummary";
 
@@ -39,7 +39,13 @@ export default function CaseLayout({ children }: { children: ReactNode }) {
             {caseRecord.matterNumber ? ` · ${caseRecord.matterNumber}` : ""}
           </span>
         )}
-        <span className="ml-auto font-mono text-xs text-graphite uppercase tracking-widest">
+        <Link
+          href="/docs"
+          className="ml-auto inline-flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-graphite hover:text-ink"
+        >
+          <BookOpen size={12} /> Directions
+        </Link>
+        <span className="font-mono text-xs text-graphite uppercase tracking-widest">
           Hey, {identity.name} ·{" "}
           <button type="button" onClick={identity.clear} className="underline hover:text-ink">
             not you?

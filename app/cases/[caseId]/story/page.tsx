@@ -28,6 +28,7 @@ export default function StoryPage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -51,13 +52,24 @@ export default function StoryPage() {
 
   const generate = async (type: NarrativeType) => {
     setGenerating(type);
+    setError(null);
     try {
-      const res = await fetchWithTimeout(`/api/cases/${caseId}/story/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type }),
-      });
-      if (res.ok) await load();
+      const res = await fetchWithTimeout(
+        `/api/cases/${caseId}/story/generate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type }),
+        },
+        45000
+      );
+      if (res.ok) {
+        await load();
+      } else {
+        setError("Could not generate this narrative — try again.");
+      }
+    } catch {
+      setError("Could not reach the server — try again.");
     } finally {
       setGenerating(null);
     }
@@ -88,6 +100,8 @@ export default function StoryPage() {
         Every narrative starts as an AI draft grounded in the medical record and approved client context. Edit
         freely, then approve when it&apos;s ready for the presentation.
       </p>
+
+      {error && <p className="font-mono text-xs text-amber">{error}</p>}
 
       {loading ? (
         <p className="font-mono text-xs uppercase tracking-widest text-graphite">Loading…</p>
@@ -122,7 +136,8 @@ export default function StoryPage() {
                       value={draftValue}
                       onChange={(event) => setDrafts((current) => ({ ...current, [type]: event.target.value }))}
                       onBlur={() => {
-                        if (draftValue !== narrative.attorneyVersion) void saveEdit(narrative.id, draftValue);
+                        const baseline = narrative.attorneyVersion ?? narrative.aiDraft;
+                        if (draftValue !== baseline) void saveEdit(narrative.id, draftValue);
                       }}
                       rows={5}
                       className="w-full border border-ink/20 bg-white/50 px-3 py-2 text-sm leading-relaxed text-ink/85 focus:border-ink/50 focus:outline-none"

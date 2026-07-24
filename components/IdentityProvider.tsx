@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import { useIdentity } from "../hooks/useIdentity";
 import Landing from "./Landing";
@@ -24,15 +25,21 @@ export function useIdentityContext(): Identity {
  */
 export default function IdentityProvider({ children }: { children: ReactNode }) {
   const identity = useIdentity();
+  const router = useRouter();
 
   if (!identity.name) {
     return <Landing onEnter={identity.setName} />;
   }
 
+  const finishGreeting = () => {
+    identity.acknowledgeGreeting();
+    router.push("/");
+  };
+
   return (
     <IdentityContext.Provider value={identity}>
       <AnimatePresence>
-        {identity.justEntered && <Greeting name={identity.name} onDone={identity.acknowledgeGreeting} />}
+        {identity.justEntered && <Greeting name={identity.name} onDone={finishGreeting} />}
       </AnimatePresence>
       {children}
     </IdentityContext.Provider>

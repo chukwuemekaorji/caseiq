@@ -107,6 +107,10 @@ ${recordContext}`,
     return NextResponse.json({ error: "The model returned malformed data." }, { status: 502 });
   }
 
+  if (!parsed.length) {
+    return NextResponse.json({ error: "The model didn't return any claims for this case." }, { status: 502 });
+  }
+
   const created = await db
     .insert(evidenceCompositions)
     .values(

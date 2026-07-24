@@ -38,7 +38,11 @@ export default function EvidenceCompositionPage() {
     setGenerating(true);
     setError(null);
     try {
-      const res = await fetchWithTimeout(`/api/cases/${caseId}/evidence-composition/generate`, { method: "POST" });
+      const res = await fetchWithTimeout(
+        `/api/cases/${caseId}/evidence-composition/generate`,
+        { method: "POST" },
+        45000
+      );
       if (!res.ok) {
         setError("Could not generate compositions — try again.");
         return;
