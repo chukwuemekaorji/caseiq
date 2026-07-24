@@ -30,6 +30,7 @@ export default function Trace({
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(1100);
   const [hover, setHover] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
 
   useEffect(() => {
     if (!ref.current) return;
@@ -38,15 +39,17 @@ export default function Trace({
     return () => observer.disconnect();
   }, []);
 
+  const renderWidth = Math.round(width * zoom);
+
   const geo = useMemo(
     () =>
       buildTrace(clusters, curve, incidentDate, {
-        width,
+        width: renderWidth,
         height: HEIGHT,
         padX: PAD_X,
         maxThickness: MAX_THICKNESS,
       }),
-    [clusters, curve, incidentDate, width]
+    [clusters, curve, incidentDate, renderWidth]
   );
 
   const gapBands = useMemo(() => {
@@ -54,21 +57,50 @@ export default function Trace({
     const start = clusters[0].date.getTime();
     const end = clusters[clusters.length - 1].date.getTime();
     const span = end - start || 1;
-    const usable = width - PAD_X * 2;
+    const usable = renderWidth - PAD_X * 2;
     return gaps.map((gap) => ({
       id: gap.id,
       days: gap.days,
       x1: PAD_X + ((gap.start.getTime() - start) / span) * usable,
       x2: PAD_X + ((gap.end.getTime() - start) / span) * usable,
     }));
-  }, [gaps, clusters, width]);
+  }, [gaps, clusters, renderWidth]);
 
   const activeKey = hover ?? selectedKey;
   const activeNode = geo.nodes.find((node) => node.key === activeKey) ?? null;
 
   return (
-    <div ref={ref} className="relative w-full select-none">
-      <svg width={width} height={HEIGHT} className="overflow-visible">
+    <div ref={ref} className="w-full select-none">
+      {clusters.length > 1 && (
+        <div className="mb-2 flex items-center justify-end gap-2 font-mono text-[10px] uppercase tracking-widest text-graphite">
+          <span>Stretch</span>
+          <button
+            type="button"
+            onClick={() => setZoom((z) => Math.max(1, Math.round((z - 0.5) * 10) / 10))}
+            disabled={zoom <= 1}
+            className="border border-ink/25 px-2 py-0.5 hover:border-ink hover:text-ink disabled:opacity-30"
+          >
+            −
+          </button>
+          <span className="w-10 text-center">{Math.round(zoom * 100)}%</span>
+          <button
+            type="button"
+            onClick={() => setZoom((z) => Math.min(6, Math.round((z + 0.5) * 10) / 10))}
+            disabled={zoom >= 6}
+            className="border border-ink/25 px-2 py-0.5 hover:border-ink hover:text-ink disabled:opacity-30"
+          >
+            +
+          </button>
+          {zoom !== 1 && (
+            <button type="button" onClick={() => setZoom(1)} className="ml-1 underline hover:text-ink">
+              Reset
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="relative w-full overflow-x-auto">
+        <svg width={renderWidth} height={HEIGHT} className="overflow-visible">
         <defs>
           <linearGradient id="preGrad" x1="0" x2="1">
             <stop offset="0%" stopColor="#8A939B" stopOpacity="0.35" />
@@ -85,7 +117,7 @@ export default function Trace({
             <rect
               x={geo.incidentX ?? 0}
               y="0"
-              width={width - (geo.incidentX ?? 0)}
+              width={renderWidth - (geo.incidentX ?? 0)}
               height={HEIGHT}
             />
           </clipPath>
@@ -217,7 +249,7 @@ export default function Trace({
         <div
           className="pointer-events-none absolute z-10 w-72 -translate-x-1/2 border border-ink/15 bg-film px-3 py-2.5 shadow-lg"
           style={{
-            left: Math.min(Math.max(activeNode.x, 144), width - 144),
+            left: Math.min(Math.max(activeNode.x, 144), renderWidth - 144),
             top: Math.max(activeNode.y - MAX_THICKNESS / 2 - 175, 0),
           }}
         >
@@ -243,7 +275,8 @@ export default function Trace({
             </p>
           )}
         </div>
-      )}
+        )}
+      </div>
 
       {clusters.length > 1 && (
         <div className="mt-1 flex justify-between px-[56px] font-mono text-[10px] text-graphite">
