@@ -77,3 +77,196 @@ export const timelineEvents = pgTable("timeline_events", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+/* ───────────────  CLIENT CONTEXT  ─────────────── */
+
+export const clientContextEntries = pgTable("client_context_entries", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  caseId: uuid("case_id")
+    .notNull()
+    .references(() => cases.id, { onDelete: "cascade" }),
+
+  content: text("content").notNull(),
+  category: text("category").notNull().default("uncategorized"),
+  sourceType: text("source_type").notNull().default("attorney"),
+  sourceName: text("source_name"),
+  eventDate: date("event_date"),
+
+  verified: boolean("verified").notNull().default(false),
+  aiUsable: boolean("ai_usable").notNull().default(true),
+  confidential: boolean("confidential").notNull().default(false),
+
+  tags: jsonb("tags").$type<string[]>().notNull().default([]),
+  relatedTimelineEventIds: jsonb("related_timeline_event_ids").$type<string[]>().notNull().default([]),
+  relatedEvidenceIds: jsonb("related_evidence_ids").$type<string[]>().notNull().default([]),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/* ───────────────  STORY POINTS  ─────────────── */
+
+export const storyPoints = pgTable("story_points", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  caseId: uuid("case_id")
+    .notNull()
+    .references(() => cases.id, { onDelete: "cascade" }),
+
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  eventDate: date("event_date"),
+  startDate: date("start_date"),
+  endDate: date("end_date"),
+
+  category: text("category").notNull().default("other"),
+  beforeState: text("before_state"),
+  afterState: text("after_state"),
+  impactAmount: integer("impact_amount"),
+  impactCurrency: text("impact_currency"),
+
+  sourceContextIds: jsonb("source_context_ids").$type<string[]>().notNull().default([]),
+  evidenceIds: jsonb("evidence_ids").$type<string[]>().notNull().default([]),
+  relatedMedicalEventIds: jsonb("related_medical_event_ids").$type<string[]>().notNull().default([]),
+
+  evidenceStrength: text("evidence_strength").notNull().default("missing"),
+  significance: text("significance").notNull().default("medium"),
+
+  aiGenerated: boolean("ai_generated").notNull().default(false),
+  attorneyApproved: boolean("attorney_approved").notNull().default(false),
+  presentationIncluded: boolean("presentation_included").notNull().default(false),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/* ───────────────  EVIDENCE  ─────────────── */
+
+export const evidenceItems = pgTable("evidence_items", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  caseId: uuid("case_id")
+    .notNull()
+    .references(() => cases.id, { onDelete: "cascade" }),
+
+  title: text("title").notNull(),
+  category: text("category").notNull().default("other"),
+  description: text("description").notNull().default(""),
+
+  sourceDocumentUrl: text("source_document_url"),
+  sourcePage: integer("source_page"),
+  sourceExcerpt: text("source_excerpt"),
+
+  eventDate: date("event_date"),
+  providerOrAuthor: text("provider_or_author"),
+
+  relatedTimelineEventIds: jsonb("related_timeline_event_ids").$type<string[]>().notNull().default([]),
+  relatedStoryPointIds: jsonb("related_story_point_ids").$type<string[]>().notNull().default([]),
+
+  strength: text("strength").notNull().default("moderate"),
+  verificationStatus: text("verification_status").notNull().default("unreviewed"),
+  reviewStatus: text("review_status").notNull().default("not-reviewed"),
+
+  attorneyNotes: text("attorney_notes"),
+  aiAnalysis: text("ai_analysis"),
+
+  includedInPresentation: boolean("included_in_presentation").notNull().default(false),
+  confidential: boolean("confidential").notNull().default(false),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/* ───────────────  EVIDENCE COMPOSITIONS  ─────────────── */
+
+export const evidenceCompositions = pgTable("evidence_compositions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  caseId: uuid("case_id")
+    .notNull()
+    .references(() => cases.id, { onDelete: "cascade" }),
+
+  claimTitle: text("claim_title").notNull(),
+  claimDescription: text("claim_description").notNull().default(""),
+
+  supportingEvidenceIds: jsonb("supporting_evidence_ids").$type<string[]>().notNull().default([]),
+  contradictingEvidenceIds: jsonb("contradicting_evidence_ids").$type<string[]>().notNull().default([]),
+  missingEvidenceItems: jsonb("missing_evidence_items").$type<string[]>().notNull().default([]),
+
+  aiReasoning: text("ai_reasoning").notNull().default(""),
+  attorneyReasoning: text("attorney_reasoning").notNull().default(""),
+  counterargument: text("counterargument").notNull().default(""),
+  attorneyResponse: text("attorney_response").notNull().default(""),
+
+  strengthScore: integer("strength_score").notNull().default(50),
+  riskLevel: text("risk_level").notNull().default("moderate"),
+
+  reviewStatus: text("review_status").notNull().default("draft"),
+  includedInPresentation: boolean("included_in_presentation").notNull().default(false),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/* ───────────────  GENERATED NARRATIVES (STORY PAGE)  ─────────────── */
+
+export const generatedNarratives = pgTable("generated_narratives", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  caseId: uuid("case_id")
+    .notNull()
+    .references(() => cases.id, { onDelete: "cascade" }),
+
+  type: text("type").notNull(),
+  aiDraft: text("ai_draft").notNull().default(""),
+  attorneyVersion: text("attorney_version"),
+
+  sourceEventIds: jsonb("source_event_ids").$type<string[]>().notNull().default([]),
+  sourceContextIds: jsonb("source_context_ids").$type<string[]>().notNull().default([]),
+  sourceEvidenceIds: jsonb("source_evidence_ids").$type<string[]>().notNull().default([]),
+
+  status: text("status").notNull().default("draft"),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/* ───────────────  PRESENTATIONS  ─────────────── */
+
+export const presentations = pgTable("presentations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  caseId: uuid("case_id")
+    .notNull()
+    .references(() => cases.id, { onDelete: "cascade" }),
+
+  title: text("title").notNull().default("Untitled presentation"),
+  purpose: text("purpose").notNull().default("trial"),
+  audience: text("audience").notNull().default("jury"),
+  status: text("status").notNull().default("draft"),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const presentationSlides = pgTable("presentation_slides", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  presentationId: uuid("presentation_id")
+    .notNull()
+    .references(() => presentations.id, { onDelete: "cascade" }),
+
+  order: integer("order").notNull().default(0),
+  templateType: text("template_type").notNull().default("content"),
+  title: text("title").notNull().default(""),
+
+  elements: jsonb("elements").$type<PresentationElement[]>().notNull().default([]),
+  presenterNotes: text("presenter_notes"),
+  attorneyApproved: boolean("attorney_approved").notNull().default(false),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export interface PresentationElement {
+  type: "heading" | "body" | "bullets" | "stat" | "quote" | "image";
+  text?: string;
+  items?: string[];
+  label?: string;
+  value?: string;
+  sourceRecordNumbers?: number[];
+}
