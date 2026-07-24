@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { useIdentityContext } from "@/components/IdentityProvider";
 import { useCaseList } from "@/hooks/useCaseList";
+import ReadingBuddy from "@/components/illustrations/ReadingBuddy";
 
 export default function CaseListPage() {
   const identity = useIdentityContext();
@@ -41,10 +42,11 @@ export default function CaseListPage() {
           <p className="font-mono text-xs uppercase tracking-widest text-graphite">Loading…</p>
         ) : cases.length === 0 ? (
           <div className="border border-dashed border-ink/20 p-12 text-center">
+            <ReadingBuddy className="mx-auto mb-4 h-32 w-32" />
             <p className="mb-4 text-sm text-graphite">No cases yet.</p>
             <Link
               href="/new"
-              className="inline-flex items-center gap-2 border border-ink px-5 py-2 font-mono text-xs uppercase tracking-widest transition-colors hover:bg-ink hover:text-film"
+              className="inline-flex items-center gap-2 border border-ink px-5 py-2 font-mono text-xs uppercase tracking-widest transition-colors hover:bg-coral hover:text-film"
             >
               Create your first case
             </Link>

@@ -15,8 +15,6 @@ const TABS = [
   { href: "evidence-composition", label: "Evidence composition" },
   { href: "story", label: "Story" },
   { href: "presentation", label: "Presentation" },
-  { href: "similar-cases", label: "Similar cases" },
-  { href: "moot-court", label: "Moot court" },
   { href: "ask", label: "Ask the record" },
 ];
 

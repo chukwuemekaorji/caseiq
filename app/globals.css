@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -10,6 +10,10 @@
   --teal: #1b4f63;
   --amber: #c4703a;
   --graphite: #8a939b;
+  --coral: #ff6b6b;
+  --violet: #8b5cf6;
+  --mint: #2dd4a7;
+  --sun: #ffc145;
 }
 
 html,
@@ -26,8 +30,7 @@ body {
 }
 
 .font-display {
-  font-family: "Archivo", Impact, sans-serif;
-  font-stretch: condensed;
+  font-family: "Bricolage Grotesque", "Archivo", Impact, sans-serif;
   letter-spacing: -0.02em;
 }
 

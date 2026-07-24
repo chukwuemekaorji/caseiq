@@ -50,17 +50,6 @@ export async function callModel({ system, user, schema }: CallOptions): Promise<
   return text;
 }
 
-export function parseJson<T>(raw: string): T {
-  const cleaned = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
-  try {
-    return JSON.parse(cleaned) as T;
-  } catch {
-    const match = cleaned.match(/[[{][\s\S]*[\]}]/);
-    if (match) return JSON.parse(match[0]) as T;
-    throw new Error("The model returned malformed data.");
-  }
-}
-
 /* ───────────────  CONTEXT BUILDING  ─────────────── */
 
 /**
@@ -103,61 +92,6 @@ ABSOLUTE RULES:
 - Do not give legal advice or predict case value.
 - Write in plain, direct professional English. No filler, no hedging preambles.`;
 
-/* ───────────────  STORY  ─────────────── */
-
-export async function generateStory(context: string): Promise<string> {
-  return callModel({
-    system: GROUNDING,
-    user: `Write a treatment narrative an attorney can read in thirty seconds.
-
-Three short paragraphs, no headings:
-1. What happened and the immediate care.
-2. How treatment progressed — the arc, the turning points.
-3. Where things stand at the end of the record.
-
-Cite records throughout. 200 words maximum.
-
-RECORDS:
-${context}`,
-  });
-}
-
-/* ───────────────  KEY MOMENTS  ─────────────── */
-
-export interface AIKeyMoment {
-  record: number;
-  title: string;
-  why: string;
-}
-
-const KEY_MOMENTS_SCHEMA = {
-  type: "array",
-  items: {
-    type: "object",
-    properties: {
-      record: { type: "integer" },
-      title: { type: "string" },
-      why: { type: "string" },
-    },
-    required: ["record", "title", "why"],
-    additionalProperties: false,
-  },
-};
-
-export async function generateKeyMoments(context: string): Promise<AIKeyMoment[]> {
-  const raw = await callModel({
-    system: GROUNDING,
-    schema: KEY_MOMENTS_SCHEMA,
-    user: `Identify the five most significant events in this treatment history — the ones that carry the case.
-
-Each entry needs a record number (one that appears in the records below), a title (six words max), and why it matters to the case (one sentence).
-
-RECORDS:
-${context}`,
-  });
-  return parseJson<AIKeyMoment[]>(raw);
-}
-
 /* ───────────────  Q&A  ─────────────── */
 
 export async function answerQuestion(context: string, question: string): Promise<string> {
@@ -171,57 +105,4 @@ QUESTION: ${question}
 RECORDS:
 ${context}`,
   });
-}
-
-/* ───────────────  STRESS TEST  ─────────────── */
-
-export interface Challenge {
-  category: "gap" | "causation" | "preexisting" | "consistency" | "evidence";
-  headline: string;
-  argument: string;
-  records: number[];
-  response: string;
-  severity: "high" | "medium" | "low";
-}
-
-const STRESS_TEST_SCHEMA = {
-  type: "array",
-  items: {
-    type: "object",
-    properties: {
-      category: {
-        type: "string",
-        enum: ["gap", "causation", "preexisting", "consistency", "evidence"],
-      },
-      headline: { type: "string" },
-      argument: { type: "string" },
-      records: { type: "array", items: { type: "integer" } },
-      response: { type: "string" },
-      severity: { type: "string", enum: ["high", "medium", "low"] },
-    },
-    required: ["category", "headline", "argument", "records", "response", "severity"],
-    additionalProperties: false,
-  },
-};
-
-export async function runStressTest(context: string, gapSummary: string): Promise<Challenge[]> {
-  const raw = await callModel({
-    system: `${GROUNDING}
-
-For this task you are acting as defence counsel reviewing the plaintiff's medical records for weaknesses. Be genuinely adversarial — find the real problems, not polite ones. Then, separately, give the plaintiff's attorney the strongest available response grounded in the same records.`,
-    schema: STRESS_TEST_SCHEMA,
-    user: `Review these records and identify the four to six strongest challenges the defence will raise.
-
-Categories: "gap" (treatment stopped), "causation" (link to incident is weak), "preexisting" (condition predates the incident), "consistency" (records contradict each other), "evidence" (something ordered but never documented as done).
-
-For each: a headline (eight words max), the defence's argument (one or two sentences), the record numbers supporting it, the strongest grounded rebuttal (or what evidence would be needed), and a severity.
-
-Order by severity, highest first. Every entry must cite at least one real record.
-
-DETECTED GAPS: ${gapSummary}
-
-RECORDS:
-${context}`,
-  });
-  return parseJson<Challenge[]>(raw);
 }

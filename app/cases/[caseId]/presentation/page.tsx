@@ -10,7 +10,6 @@ import {
   Loader2,
   Maximize2,
   Plus,
-  Presentation as PresentationIcon,
   Printer,
   Sparkles,
   Trash2,
@@ -21,6 +20,7 @@ import JuryView from "@/components/presentation/JuryView";
 import SlideThumbnail from "@/components/presentation/SlideThumbnail";
 import SlideCanvas from "@/components/presentation/SlideCanvas";
 import PrintableDeck from "@/components/presentation/PrintableDeck";
+import PresentingBuddy from "@/components/illustrations/PresentingBuddy";
 
 export default function PresentationPage() {
   const { caseId } = useParams<{ caseId: string }>();
@@ -194,7 +194,7 @@ export default function PresentationPage() {
 
       {!slides.length ? (
         <div className="border border-dashed border-ink/20 p-10 text-center">
-          <PresentationIcon size={20} className="mx-auto mb-2 text-graphite" />
+          <PresentingBuddy className="mx-auto mb-3 h-28 w-32" />
           <p className="text-sm text-graphite">No slides yet. Generate from approved content or add a blank slide.</p>
           <button
             type="button"

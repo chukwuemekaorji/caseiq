@@ -19,7 +19,7 @@ export default function AskPage() {
   const { caseId } = useParams<{ caseId: string }>();
   const router = useRouter();
   const caseData = useCaseData(caseId);
-  const ai = useAI(caseData.events, caseData.incidentDate, caseData.gaps);
+  const ai = useAI(caseData.events, caseData.incidentDate);
   const [question, setQuestion] = useState("");
 
   const onCite = (recordNumber: number) => {
