@@ -1,26 +1,6 @@
 import type { MedicalEvent } from "../types";
 
-const ENDPOINT = "https://api.anthropic.com/v1/messages";
-const MODEL = "claude-sonnet-5";
-
-export class MissingKeyError extends Error {
-  constructor() {
-    super("No API key set.");
-    this.name = "MissingKeyError";
-  }
-}
-
-export function getKey(): string | null {
-  return sessionStorage.getItem("caseiq_key");
-}
-
-export function setKey(k: string) {
-  sessionStorage.setItem("caseiq_key", k.trim());
-}
-
-export function clearKey() {
-  sessionStorage.removeItem("caseiq_key");
-}
+const ENDPOINT = "/api/anthropic";
 
 interface CallOptions {
   system: string;
@@ -35,51 +15,45 @@ export async function callModel({
   json = false,
   temperature = 0.2,
 }: CallOptions): Promise<string> {
-  const key = getKey();
-  if (!key) throw new MissingKeyError();
-
-  // Prefilling "[" forces valid JSON without a response-format param.
-  const prefill = json ? "[" : null;
-
   const res = await fetch(ENDPOINT, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": key,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true",
     },
     body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 2048,
-      temperature,
       system,
-      messages: [
-        { role: "user", content: user },
-        ...(prefill ? [{ role: "assistant", content: prefill }] : []),
-      ],
+      user,
+      json,
+      temperature,
     }),
   });
 
+  const raw = await res.text();
+
   if (!res.ok) {
-    const body = await res.text();
-    if (res.status === 401) throw new Error("That API key was rejected. Check it and try again.");
-    if (res.status === 429) throw new Error("Rate limit reached. Wait a few seconds and retry.");
-    if (res.status === 400 && /credit/i.test(body)) throw new Error("Your Anthropic account is out of credit.");
+    try {
+      const payload = JSON.parse(raw) as { error?: string };
+      if (payload.error) throw new Error(payload.error);
+    } catch {
+      // Fall through to raw body handling below.
+    }
+
+    if (raw) throw new Error(raw);
     throw new Error(`Model request failed (${res.status}).`);
   }
 
-  const data = await res.json();
-  const text = data?.content
-    ?.filter((b: { type: string }) => b.type === "text")
-    .map((b: { text: string }) => b.text)
-    .join("")
-    .trim();
+  let data: { text?: string };
+  try {
+    data = JSON.parse(raw) as { text?: string };
+  } catch {
+    throw new Error("The backend returned malformed data.");
+  }
+
+  const text = data.text?.trim() ?? "";
 
   if (!text) throw new Error("The model returned an empty response.");
 
-  // Re-attach the prefill so parseJson sees a complete structure.
-  return prefill ? prefill + text : text;
+  return text;
 }
 
 export function parseJson<T>(raw: string): T {

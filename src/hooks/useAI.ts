@@ -7,7 +7,6 @@ import {
   generateKeyMoments,
   answerQuestion,
   runStressTest,
-  MissingKeyError,
   type AIKeyMoment,
   type Challenge,
 } from "../lib/ai";
@@ -24,7 +23,6 @@ export function useAI(events: MedicalEvent[], incidentDate: Date | null, gaps: T
   const [qa, setQa] = useState<QA[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [needsKey, setNeedsKey] = useState(false);
 
   const context = useMemo(() => buildContext(events, incidentDate), [events, incidentDate]);
 
@@ -44,8 +42,7 @@ export function useAI(events: MedicalEvent[], incidentDate: Date | null, gaps: T
     try {
       await fn();
     } catch (e) {
-      if (e instanceof MissingKeyError) setNeedsKey(true);
-      else setError(e instanceof Error ? e.message : "Something went wrong.");
+      setError(e instanceof Error ? e.message : "Something went wrong.");
     } finally {
       setBusy(null);
     }
@@ -90,8 +87,6 @@ export function useAI(events: MedicalEvent[], incidentDate: Date | null, gaps: T
     qa,
     busy,
     error,
-    needsKey,
-    setNeedsKey,
     runStory,
     runMoments,
     runChallenges,

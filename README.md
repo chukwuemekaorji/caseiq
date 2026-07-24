@@ -30,37 +30,30 @@ npm run preview
 
 ## Claude API key
 
-CaseIQ does not need a backend. If you want the AI features, open the app and click **API key** in the header. Paste your Claude key there and save it.
+CaseIQ now uses a backend function for AI requests. The Claude key never goes into the browser.
 
-- The key is stored only in `sessionStorage` for the current browser tab.
-- It is not committed to the repo and is not bundled into the app.
-- The app uses the Anthropic direct browser API, so the key is sent only in the requests you make from the browser.
+Set the following Vercel environment variable on the project:
 
-Use an Anthropic key that starts with `sk-ant-`. If the key is missing or rejected, the app will prompt you in the UI.
+- `ANTHROPIC_API_KEY`
+
+Use an Anthropic key that starts with `sk-ant-`.
 
 ## Deployment
 
-This is a static Vite app, so you can deploy it anywhere that serves static files.
+This app is meant to be hosted on Vercel.
 
-Recommended options:
-
-1. Vercel - import the repo, keep the build command as `npm run build`, and publish the `dist` folder.
-2. Netlify - set the build command to `npm run build` and the publish directory to `dist`.
-3. Cloudflare Pages or any static host - same build output, same `dist` folder.
-
-### Deploy steps
+### Vercel setup
 
 1. Push the repo to GitHub.
-2. Connect the repo to your host of choice.
-3. Set the build command to `npm run build`.
-4. Set the output/public directory to `dist`.
-5. Deploy.
+2. Open Vercel and choose **Add New -> Project**.
+3. Import the GitHub repo.
+4. Keep the default framework detection as Vite.
+5. Add the `ANTHROPIC_API_KEY` environment variable in Vercel project settings.
+6. Set the build command to `npm run build`.
+7. Set the output directory to `dist`.
+8. Deploy.
 
-### API key after deploy
-
-There is no server-side environment variable for the Claude key in this app. Users enter their own key in the browser via the **API key** button after the site loads.
-
-If you later add a backend proxy, that would be the place to move the key out of the browser. In the current version, the browser-held key is the intended setup.
+The backend lives in the Vercel `api/` folder, so the browser only talks to your own `/api/anthropic` route. If you want to test the backend locally too, use `vercel dev` from the repo root so the function is available during development.
 
 ## Notes
 

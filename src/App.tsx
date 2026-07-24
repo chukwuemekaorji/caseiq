@@ -1,7 +1,6 @@
 import { useMemo, useRef, useState } from "react";
-import { Key, Presentation } from "lucide-react";
+import { Presentation } from "lucide-react";
 import FileDrop from "./components/FileDrop";
-import KeyModal from "./components/panels/KeyModal";
 import IncidentPrompt from "./components/panels/IncidentPrompt";
 import { AskPanel, MomentsPanel, StoryPanel, StressPanel } from "./components/panels/AIPanels";
 import FilterBar from "./components/panels/FilterBar";
@@ -17,7 +16,6 @@ export default function App() {
   const ai = useAI(caseData.events, caseData.incidentDate, caseData.gaps);
   const f = useFilters(caseData.events);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const [showKey, setShowKey] = useState(false);
   const [exhibit, setExhibit] = useState(false);
   const detailRef = useRef<HTMLDivElement>(null);
   const visibleClusters = useMemo(() => {
@@ -49,15 +47,6 @@ export default function App() {
             className="inline-flex items-center gap-2 border border-ink px-3 py-1 font-mono text-xs uppercase tracking-widest"
           >
             <Presentation size={12} /> Exhibit
-          </button>
-        )}
-        {caseData.parsed && (
-          <button
-            type="button"
-            onClick={() => setShowKey(true)}
-            className="inline-flex items-center gap-2 border border-ink/30 px-3 py-1 font-mono text-xs uppercase tracking-widest"
-          >
-            <Key size={12} /> API key
           </button>
         )}
         {caseData.parsed && (
@@ -126,14 +115,6 @@ export default function App() {
         )}
       </main>
 
-      {(showKey || ai.needsKey) && (
-        <KeyModal
-          onClose={() => {
-            setShowKey(false);
-            ai.setNeedsKey(false);
-          }}
-        />
-      )}
       {ai.error && (
         <div className="fixed bottom-6 right-6 max-w-sm border border-amber bg-film px-4 py-3 font-mono text-xs text-amber">
           {ai.error}
