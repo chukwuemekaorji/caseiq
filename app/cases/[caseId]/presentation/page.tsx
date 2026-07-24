@@ -57,7 +57,7 @@ export default function PresentationPage() {
   const generate = async () => {
     setGenerating(true);
     try {
-      const res = await fetchWithTimeout(`/api/cases/${caseId}/presentation/generate`, { method: "POST" }, 30000);
+      const res = await fetchWithTimeout(`/api/cases/${caseId}/presentation/generate`, { method: "POST" }, 60000);
       if (res.ok) {
         const data = await res.json();
         setSlides(data.slides ?? []);

@@ -10,14 +10,61 @@ import {
   evidenceCompositions,
 } from "@/db/schema";
 import type { PresentationElement } from "@/db/schema";
+import { callAnthropic } from "@/backend/anthropicClient";
+
+const BULLET_SCHEMA = {
+  type: "array",
+  items: { type: "string" },
+};
 
 /**
- * Assembles a slide deck from content that is already attorney-approved —
- * it never calls the model here. Narratives, evidence, and claim compositions
- * were already reviewed on their own pages; this step only structures what
- * was approved. That's the whole point of "jury-facing output built from
- * approved content only" — nothing new gets invented at export time.
+ * Condenses attorney-approved prose into short, jury-slide-ready bullets.
+ * This never introduces a new fact — it's a compression of text that's
+ * already been approved elsewhere, not fresh generation, so it stays
+ * inside the "nothing invented at export time" rule. Falls back to a
+ * plain sentence split if the model call fails, so one bad summarization
+ * never blocks the whole deck.
  */
+async function condenseToBullets(text: string, maxBullets = 4): Promise<string[]> {
+  const result = await callAnthropic({
+    system:
+      "You compress attorney-approved case text into short, punchy bullet points for a jury-facing slide. " +
+      "ABSOLUTE RULES: never add a fact, number, date, citation, or claim that isn't already written in the source text — " +
+      "that includes record citations. If the source text already contains a specific citation like '[record 42]' or 'record 42', " +
+      "keep that exact number. If the source text has NO citation for a given statement, do not add one — never write a placeholder " +
+      "or generic marker like '[record N]', '[record #]', or similar. An uncited sentence in the source must stay uncited in the bullet. " +
+      "Never soften or exaggerate. Each bullet is one short sentence or fragment, plain language, no legal jargon where a simpler word works.",
+    schema: BULLET_SCHEMA,
+    user: `Condense this into at most ${maxBullets} short bullet points for a jury slide:\n\n${text}`,
+  });
+
+  if (!result.ok) return fallbackBullets(text, maxBullets);
+  try {
+    const parsed = JSON.parse(result.text);
+    if (Array.isArray(parsed) && parsed.every((x) => typeof x === "string") && parsed.length) {
+      return parsed.slice(0, maxBullets).map(stripPlaceholderCitations);
+    }
+  } catch {
+    // fall through to heuristic fallback
+  }
+  return fallbackBullets(text, maxBullets);
+}
+
+/**
+ * Belt-and-suspenders against the model inventing a citation where the
+ * source had none — e.g. "[record N]" or "[record #]" instead of a real
+ * number. Only strips brackets that contain "record" with no digit inside;
+ * a genuine "[record 42]" citation is left untouched.
+ */
+function stripPlaceholderCitations(bullet: string): string {
+  return bullet.replace(/\s*\[record[^\]0-9]*\]/gi, "").trim();
+}
+
+function fallbackBullets(text: string, maxBullets: number): string[] {
+  const sentences = text.match(/[^.!?]+[.!?]+/g) ?? [text];
+  return sentences.slice(0, maxBullets).map((s) => s.trim());
+}
+
 export async function POST(_req: Request, context: { params: Promise<{ caseId: string }> }) {
   const { caseId } = await context.params;
 
@@ -57,7 +104,8 @@ export async function POST(_req: Request, context: { params: Promise<{ caseId: s
 
   const clientName = caseRecord.clientName ?? caseRecord.caseName ?? "This case";
 
-  const slides: Array<{ templateType: string; title: string; elements: PresentationElement[] }> = [];
+  type DraftSlide = { templateType: string; title: string; elements: PresentationElement[]; presenterNotes?: string };
+  const slides: DraftSlide[] = [];
 
   slides.push({
     templateType: "title",
@@ -68,50 +116,37 @@ export async function POST(_req: Request, context: { params: Promise<{ caseId: s
     ],
   });
 
-  const summary = narrativeText("thirty-second-summary");
-  if (summary) {
-    slides.push({
-      templateType: "content",
-      title: "Case summary",
-      elements: [{ type: "body", text: summary }],
-    });
-  }
+  const NARRATIVE_SLIDES: Array<{ type: string; title: string }> = [
+    { type: "thirty-second-summary", title: "Case summary" },
+    { type: "medical-story", title: "Medical journey" },
+    { type: "life-impact-story", title: "Life impact" },
+    { type: "financial-story", title: "Financial impact" },
+    { type: "before-after", title: "Before vs. after" },
+    { type: "closing-summary", title: "Closing" },
+  ];
 
-  const medical = narrativeText("medical-story");
-  if (medical) {
-    slides.push({
-      templateType: "content",
-      title: "Medical journey",
-      elements: [{ type: "body", text: medical }],
-    });
-  }
+  const narrativeJobs = NARRATIVE_SLIDES.map(({ type, title }) => ({ type, title, text: narrativeText(type) })).filter(
+    (job): job is { type: string; title: string; text: string } => Boolean(job.text)
+  );
 
-  const lifeImpact = narrativeText("life-impact-story");
-  if (lifeImpact) {
-    slides.push({
-      templateType: "content",
-      title: "Life impact",
-      elements: [{ type: "body", text: lifeImpact }],
-    });
-  }
+  const claimJobs = includedCompositions.flatMap((c) => [
+    { key: `${c.id}:claim`, text: c.claimDescription },
+    { key: `${c.id}:response`, text: c.attorneyResponse },
+  ]);
 
-  const financial = narrativeText("financial-story");
-  if (financial) {
-    slides.push({
-      templateType: "content",
-      title: "Financial impact",
-      elements: [{ type: "body", text: financial }],
-    });
-  }
+  const [narrativeBullets, claimBullets] = await Promise.all([
+    Promise.all(narrativeJobs.map((job) => condenseToBullets(job.text))),
+    Promise.all(claimJobs.map((job) => condenseToBullets(job.text, 3))),
+  ]);
 
-  const beforeAfter = narrativeText("before-after");
-  if (beforeAfter) {
+  narrativeJobs.forEach((job, i) => {
     slides.push({
-      templateType: "before-after",
-      title: "Before vs. after",
-      elements: [{ type: "body", text: beforeAfter }],
+      templateType: job.type === "before-after" ? "before-after" : job.type === "closing-summary" ? "closing" : "content",
+      title: job.title,
+      elements: [{ type: "bullets", items: narrativeBullets[i] }],
+      presenterNotes: job.text,
     });
-  }
+  });
 
   if (includedEvidence.length) {
     slides.push({
@@ -126,23 +161,18 @@ export async function POST(_req: Request, context: { params: Promise<{ caseId: s
     });
   }
 
+  const claimBulletsByKey = new Map<string, string[]>();
+  claimJobs.forEach((job, i) => claimBulletsByKey.set(job.key, claimBullets[i]));
+
   for (const composition of includedCompositions) {
     slides.push({
       templateType: "claim",
       title: composition.claimTitle,
       elements: [
-        { type: "body", text: composition.claimDescription },
-        { type: "body", text: composition.attorneyResponse },
+        { type: "bullets", items: claimBulletsByKey.get(`${composition.id}:claim`) ?? [] },
+        { type: "bullets", items: claimBulletsByKey.get(`${composition.id}:response`) ?? [] },
       ],
-    });
-  }
-
-  const closing = narrativeText("closing-summary");
-  if (closing) {
-    slides.push({
-      templateType: "closing",
-      title: "Closing",
-      elements: [{ type: "body", text: closing }],
+      presenterNotes: `Claim: ${composition.claimDescription}\n\nResponse: ${composition.attorneyResponse}`,
     });
   }
 
@@ -157,6 +187,7 @@ export async function POST(_req: Request, context: { params: Promise<{ caseId: s
             templateType: slide.templateType,
             title: slide.title,
             elements: slide.elements,
+            presenterNotes: slide.presenterNotes ?? null,
           }))
         )
         .returning()

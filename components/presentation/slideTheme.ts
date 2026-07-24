@@ -24,3 +24,14 @@ export const TEMPLATE_LABEL: Record<string, string> = {
   "before-after": "Before / after",
   closing: "Closing",
 };
+
+/** Single-character glyph per template — used as a decorative anchor in
+ * contexts (PPTX export) that can't render a real icon component. */
+export const TEMPLATE_GLYPH: Record<string, string> = {
+  title: "§",
+  content: "✎",
+  evidence: "✓",
+  claim: "⚖",
+  "before-after": "⇄",
+  closing: "✦",
+};

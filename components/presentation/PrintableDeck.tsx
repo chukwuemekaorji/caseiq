@@ -1,5 +1,5 @@
 import type { PresentationSlide } from "@/types";
-import { accentFor } from "./slideTheme";
+import { accentFor, TEMPLATE_GLYPH } from "./slideTheme";
 
 export default function PrintableDeck({ title, slides }: { title: string; slides: PresentationSlide[] }) {
   return (
@@ -41,6 +41,8 @@ function PrintableSlideBody({ slide }: { slide: PresentationSlide }) {
 
   if (slide.templateType === "claim" && slide.elements.length >= 2) {
     const [claim, response] = slide.elements;
+    const claimItems = claim.items ?? (claim.text ? [claim.text] : []);
+    const responseItems = response.items ?? (response.text ? [response.text] : []);
     return (
       <div>
         <h1 className="mb-8 font-display text-3xl uppercase tracking-tight">{slide.title}</h1>
@@ -49,13 +51,21 @@ function PrintableSlideBody({ slide }: { slide: PresentationSlide }) {
             <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-amber">
               The other side will argue
             </p>
-            <p className="text-sm leading-relaxed">{claim.text}</p>
+            <ul className="list-disc space-y-1 pl-4 text-sm leading-relaxed">
+              {claimItems.map((item, i) => (
+                <li key={i}>{item}</li>
+              ))}
+            </ul>
           </div>
           <div className="border-t-2 p-4" style={{ borderColor: accent }}>
             <p className="mb-2 font-mono text-[10px] uppercase tracking-widest" style={{ color: accent }}>
               Our response
             </p>
-            <p className="text-sm leading-relaxed">{response.text}</p>
+            <ul className="list-disc space-y-1 pl-4 text-sm leading-relaxed">
+              {responseItems.map((item, i) => (
+                <li key={i}>{item}</li>
+              ))}
+            </ul>
           </div>
         </div>
       </div>
@@ -81,7 +91,15 @@ function PrintableSlideBody({ slide }: { slide: PresentationSlide }) {
 
   return (
     <div>
-      <h1 className="mb-2 font-display text-3xl uppercase tracking-tight">{slide.title}</h1>
+      <div className="mb-3 flex items-center gap-3">
+        <span
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm text-white"
+          style={{ background: accent }}
+        >
+          {TEMPLATE_GLYPH[slide.templateType] ?? "✎"}
+        </span>
+        <h1 className="font-display text-3xl uppercase tracking-tight">{slide.title}</h1>
+      </div>
       <div className="mb-6 h-[2px] w-14" style={{ background: accent }} />
       <div className="space-y-4">
         {slide.elements.map((el, i) => {

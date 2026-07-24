@@ -1,5 +1,5 @@
 import type { PresentationSlide } from "@/types";
-import { TEMPLATE_ACCENT } from "@/components/presentation/slideTheme";
+import { TEMPLATE_ACCENT, TEMPLATE_GLYPH } from "@/components/presentation/slideTheme";
 
 const INK = "0B1520";
 const GRAPHITE = "8A939B";
@@ -23,6 +23,21 @@ export async function exportPptx(title: string, slides: PresentationSlide[]) {
     const accent = accentHex(slide.templateType);
     pptSlide.background = { color: "FFFFFF" };
     pptSlide.addShape("rect", { x: 0, y: 0, w: SLIDE_W, h: 0.12, fill: { color: accent }, line: { type: "none" } });
+
+    if (slide.templateType !== "title") {
+      pptSlide.addShape("ellipse", { x: SLIDE_W - 1.05, y: 0.35, w: 0.55, h: 0.55, fill: { color: accent }, line: { type: "none" } });
+      pptSlide.addText(TEMPLATE_GLYPH[slide.templateType] ?? "✎", {
+        x: SLIDE_W - 1.05,
+        y: 0.35,
+        w: 0.55,
+        h: 0.55,
+        fontSize: 20,
+        color: "FFFFFF",
+        align: "center",
+        valign: "middle",
+        fontFace: "Arial",
+      });
+    }
 
     if (slide.templateType === "title") {
       addTitleSlide(pptSlide, slide, accent);
@@ -114,16 +129,11 @@ function addClaimSlide(pptSlide: any, slide: PresentationSlide, accent: string) 
     fontFace: "Arial",
     charSpacing: 1,
   });
-  pptSlide.addText(claim?.text ?? "", {
-    x: 0.5,
-    y: 1.85,
-    w: colW,
-    h: SLIDE_H - 2.3,
-    fontSize: 13,
-    color: "333333",
-    fontFace: "Arial",
-    valign: "top",
-  });
+  const claimItems = (claim?.items?.length ? claim.items : claim?.text ? [claim.text] : []).filter(Boolean);
+  pptSlide.addText(
+    claimItems.map((item) => ({ text: item, options: { bullet: true, breakLine: true, paraSpaceAfter: 8 } })),
+    { x: 0.5, y: 1.85, w: colW, h: SLIDE_H - 2.3, fontSize: 14, color: "333333", fontFace: "Arial", valign: "top" }
+  );
 
   const rightX = 0.5 + colW + 0.3;
   pptSlide.addShape("rect", { x: rightX, y: 1.35, w: colW, h: 0.03, fill: { color: accent }, line: { type: "none" } });
@@ -138,16 +148,11 @@ function addClaimSlide(pptSlide: any, slide: PresentationSlide, accent: string) 
     fontFace: "Arial",
     charSpacing: 1,
   });
-  pptSlide.addText(response?.text ?? "", {
-    x: rightX,
-    y: 1.85,
-    w: colW,
-    h: SLIDE_H - 2.3,
-    fontSize: 13,
-    color: "333333",
-    fontFace: "Arial",
-    valign: "top",
-  });
+  const responseItems = (response?.items?.length ? response.items : response?.text ? [response.text] : []).filter(Boolean);
+  pptSlide.addText(
+    responseItems.map((item) => ({ text: item, options: { bullet: true, breakLine: true, paraSpaceAfter: 8 } })),
+    { x: rightX, y: 1.85, w: colW, h: SLIDE_H - 2.3, fontSize: 14, color: "333333", fontFace: "Arial", valign: "top" }
+  );
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -189,10 +194,10 @@ function addContentSlide(pptSlide: any, slide: PresentationSlide, accent: string
     if (el.type === "bullets" && el.items?.length) {
       const items = el.items.filter(Boolean);
       pptSlide.addText(
-        items.map((item) => ({ text: item, options: { bullet: true, breakLine: true, paraSpaceAfter: 6 } })),
-        { x: 0.5, y, w: SLIDE_W - 1, h: Math.min(items.length * 0.4 + 0.3, SLIDE_H - y - 0.5), fontSize: 14, color: "333333", fontFace: "Arial" }
+        items.map((item) => ({ text: item, options: { bullet: true, breakLine: true, paraSpaceAfter: 12 } })),
+        { x: 0.5, y, w: SLIDE_W - 1, h: Math.min(items.length * 0.55 + 0.3, SLIDE_H - y - 0.5), fontSize: 17, color: "333333", fontFace: "Arial", valign: "top" }
       );
-      y += Math.min(items.length * 0.4 + 0.5, SLIDE_H - y);
+      y += Math.min(items.length * 0.55 + 0.5, SLIDE_H - y);
     } else if (el.type === "stat") {
       pptSlide.addText(`${el.label ?? ""}`, { x: 0.5, y, w: SLIDE_W - 1, h: 0.35, fontSize: 11, color: GRAPHITE, fontFace: "Arial", charSpacing: 1 });
       pptSlide.addText(`${el.value ?? ""}`, { x: 0.5, y: y + 0.35, w: SLIDE_W - 1, h: 0.7, fontSize: 30, bold: true, color: accent, fontFace: "Arial" });
