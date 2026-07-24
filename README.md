@@ -1,22 +1,46 @@
 # CaseIQ
 
-CaseIQ is a legal case workspace for personal-injury attorneys, starting from a medical chronology timeline and growing toward the full case-story platform described in [docs/PRD.md](docs/PRD.md). It accepts an Excel workbook, normalises the rows into a treatment timeline, highlights gaps and key moments, and can generate grounded AI summaries, Q&A, and a defense-style stress test.
+CaseIQ is a legal case workspace for personal-injury attorneys. Upload a medical chronology (or several), and it becomes a case with a normalized timeline, gap/key-moment detection, attorney-curated client context and evidence, AI-drafted narratives, a defense-style claim stress test, and a presentation builder that exports to Jury View, PDF, and PowerPoint. See [docs/PRD.md](docs/PRD.md) for the original full-scope roadmap this was built against.
 
-This build (Priority 0 of the PRD's roadmap) focuses on making the existing chronology durable: imported cases now persist in a real database instead of living only in browser memory, and any rows the parser can't place on the timeline are reported explicitly instead of silently dropped.
+**No real authentication.** Identity is a name typed into `localStorage`, purely a greeting — every case lives in one shared database with no per-user ownership boundary. Anyone who opens the app, on any device, sees the same case list. Don't put anything in here you wouldn't want a colleague to also see.
+
+## What's built
+
+- **Case management** — create a case from one workbook, or bulk-upload several files as separate cases in one pass; add more records to an existing case later. Delete a case (cascades everything it owns).
+- **Timeline** — hover a point for a summary, click to pin the full record; filter by severity/provider/body part; treatment gaps over 60 days are called out; a "stretch" control widens the trace and scrolls when a case has too many records to space out otherwise.
+- **Import diagnostics** — every workbook row is accounted for; rows that don't parse (blank rows, unreadable dates) are reported, not silently dropped.
+- **Client context** — attorney notes alongside the medical record, with AI-suggested story-point framing and follow-up questions (a draft the attorney decides whether to use).
+- **Evidence** — track documents/statements outside the medical record, with verification status and presentation inclusion.
+- **Evidence composition** — AI reviews the full timeline and drafts the defense's strongest challenges to 4-6 claims, each with the missing evidence that would strengthen it and a grounded attorney response.
+- **Story** — seven AI-drafted narrative sections (30-second summary, medical journey, life impact, financial impact, before/after, opening, closing), editable, with an approval gate before anything reaches a deck.
+- **Presentation** — assembles a deck from *only* attorney-approved content (no fresh AI writing at export time, aside from condensing approved text into slide-ready bullets — never inventing a new fact or citation). Slide-type-aware visual layouts (title, claim comparison, evidence list, content), a fullscreen Jury View with transitions, and export to print/PDF or an editable PPTX.
+- **Ask the record** — grounded Q&A over the case; every answer cites specific record numbers or says the records don't support an answer, with clickable citations that jump to that record on the Timeline.
+- **Directions** (`/docs`) — an in-app, dropdown-driven walkthrough of every workflow above.
 
 ## Structure
 
 ```
-/app              Next.js App Router — pages and API routes
-  /api/import         POST — persists a parsed workbook (case, import batch, medical records, timeline events)
-  /api/cases/current   GET — hydrates the most recently created case (no case switcher yet — Priority 1)
-  /api/cases/[caseId]  PATCH — persists the confirmed incident date
-  /api/anthropic       POST — proxies AI requests, key never reaches the browser
-/db               Drizzle ORM schema + client (Postgres)
-/backend          Shared Anthropic-calling logic, used by the /api/anthropic route
-/lib              Excel parsing, event analysis, timeline geometry, AI prompt building — framework-agnostic
-/components       UI components (timeline, panels, exhibit view, landing)
-/hooks            useCaseData (now DB-backed), useAI, useFilters, useIdentity
+/app
+  /api/import                          POST — persists a parsed workbook (case, import batch, medical records, timeline events)
+  /api/cases                           GET (list) / POST (create)
+  /api/cases/[caseId]                  GET / PATCH (incident date) / DELETE (cascades everything)
+  /api/cases/[caseId]/context          Client context CRUD + AI suggestion
+  /api/cases/[caseId]/evidence         Evidence CRUD
+  /api/cases/[caseId]/evidence-composition   CRUD + AI generation
+  /api/cases/[caseId]/story            Narrative CRUD + AI generation (7 types)
+  /api/cases/[caseId]/presentation     Deck + slides CRUD, reorder, AI-assisted generation
+  /api/cases/[caseId]/overview         Aggregate counts for the case dashboard
+  /api/anthropic                       Proxies ad-hoc AI requests (Ask the Record) — key never reaches the browser
+  /cases/[caseId]/*                    Overview, Timeline, Client context, Evidence, Evidence composition,
+                                        Story, Presentation, Ask the record — one layout, tabbed nav
+  /docs                                 Directions page
+  /new                                  Case creation (single or bulk upload)
+
+/db               Drizzle ORM schema (db/schema.ts) + lazy Postgres client (db/client.ts)
+/backend          Anthropic Messages API client (backend/anthropicClient.ts) — thinking disabled, structured outputs
+/lib              Excel parsing, event analysis, timeline geometry, AI prompt building, PPTX export — framework-agnostic
+/components       Timeline (Trace/DayDetail), panels, presentation (JuryView/SlideCanvas/PrintableDeck), illustrations, landing
+/hooks            useCaseData, useCaseList, useCaseSummary, useAI, useFilters, useIdentity
 /types            Shared TypeScript types
 ```
 
@@ -26,11 +50,15 @@ This build (Priority 0 of the PRD's roadmap) focuses on making the existing chro
 npm install
 ```
 
-You'll need a Postgres database. The easiest path is Vercel Postgres (Storage → Create Database → Postgres in the Vercel dashboard), which gives you a connection string. Put it in `.env.local`:
+You'll need a Postgres database — this project was built against [Supabase](https://supabase.com). Create a project, then set both of these in `.env.local`:
 
 ```bash
-DATABASE_URL=postgres://...
+DATABASE_URL=postgres://...   # transaction pooler connection, used at runtime
+DIRECT_URL=postgres://...     # session pooler connection, used for migrations (drizzle-kit)
+ANTHROPIC_API_KEY=sk-ant-...
 ```
+
+Supabase's *direct* connection is IPv6-only and may be unreachable depending on your network — use the **pooler** connection strings from the Supabase dashboard for both variables above (session pooler for `DIRECT_URL`, transaction pooler for `DATABASE_URL`), not the direct one.
 
 Then push the schema and start the dev server:
 
@@ -49,26 +77,25 @@ npm run db:studio     # browse the database in Drizzle Studio
 
 ## Claude API key
 
-AI requests go through `/api/anthropic`, a server-side route. The Claude key never goes into the browser.
+AI requests go through server-side routes (`/api/anthropic` for ad-hoc Q&A, plus dedicated `generate` routes per feature) — the key never reaches the browser.
 
-Set `ANTHROPIC_API_KEY` as an environment variable — locally in `.env.local`, and in Vercel project settings for the **Production** environment. Use an Anthropic key that starts with `sk-ant-`. Adding or changing the variable does not affect deployments that already ran — trigger a new deployment afterward.
+Set `ANTHROPIC_API_KEY` — locally in `.env.local`, and in Vercel project settings for the **Production** environment. Adding or changing the variable does not affect deployments that already ran — trigger a new deployment afterward.
+
+The model in use is `claude-sonnet-5`. Extended thinking is explicitly disabled on every call (`thinking: { type: "disabled" }`) — this model runs reasoning by default on complex prompts, and those tokens count against `max_tokens`; left enabled, a large case context can burn the entire budget on invisible reasoning and return an empty response.
 
 ## Deployment
 
-This app is meant to be hosted on Vercel — it's a standard Next.js App Router project, so no custom build configuration is needed.
+Standard Next.js App Router project on Vercel — no custom build configuration needed.
 
 1. Push the repo to GitHub and import it into Vercel.
-2. Add a Postgres database from the Vercel dashboard (Storage tab) — this auto-injects the connection string as an env var.
-3. Add `ANTHROPIC_API_KEY` (Production environment).
-4. Run `npm run db:push` against the production database (or set up a migration step in CI) before the first deploy that needs it.
-5. Deploy.
-
-## What's implemented vs. what's next
-
-See [docs/PRD.md](docs/PRD.md) for the full roadmap. This build covers Priority 0: import diagnostics and row-level provenance, and a chronology that survives a page refresh. Multi-case switching, client context, evidence, and the presentation builder are later priorities and not yet built.
+2. Add `DATABASE_URL`, `DIRECT_URL`, and `ANTHROPIC_API_KEY` (Production environment) — see above for where the first two come from.
+3. Run `npm run db:push` against the production database before the first deploy that needs the new schema.
+4. Deploy.
 
 ## Notes
 
-- The project expects the `xlsx` package to parse medical workbooks. Parsing still happens client-side — only the extracted structured fields (dates, providers, summaries) are sent to the server for persistence, not the file itself.
-- Print / PDF export uses the browser print dialog and the print stylesheet in `app/globals.css`.
-- If you change the UI or file parsing, run `npm run build` before deploying.
+- Excel parsing happens entirely client-side (the `xlsx` package, in the browser) — only the extracted structured fields (dates, providers, summaries) are sent to the server for persistence, never the original file.
+- The app is built to survive an unreachable database: the Postgres client fails fast (3s connect / 6s query timeout) instead of hanging, and client-side fetches are timeout-bounded, so upload, parsing, the timeline, and the exhibit views keep working even when nothing can be saved.
+- Citations use a case-scoped `recordNumber`, not the raw spreadsheet row — necessary once a case can be built from multiple uploaded files, since raw row numbers collide across files.
+- Print/PDF export uses the browser print dialog and the print stylesheet in `app/globals.css`; PPTX export uses `pptxgenjs` entirely client-side.
+- If you change the UI, API routes, or file parsing, run `npm run build` before deploying — it runs the TypeScript check.
