@@ -1,6 +1,9 @@
 import { useMemo, useRef, useState } from "react";
+import { AnimatePresence } from "framer-motion";
 import { Presentation } from "lucide-react";
 import FileDrop from "./components/FileDrop";
+import Landing from "./components/Landing";
+import Greeting from "./components/Greeting";
 import IncidentPrompt from "./components/panels/IncidentPrompt";
 import { AskPanel, MomentsPanel, StoryPanel, StressPanel } from "./components/panels/AIPanels";
 import FilterBar from "./components/panels/FilterBar";
@@ -10,8 +13,10 @@ import Trace from "./components/timeline/Trace";
 import { useCaseData } from "./hooks/useCaseData";
 import { useAI } from "./hooks/useAI";
 import { useFilters } from "./hooks/useFilters";
+import { useIdentity } from "./hooks/useIdentity";
 
 export default function App() {
+  const identity = useIdentity();
   const caseData = useCaseData();
   const ai = useAI(caseData.events, caseData.incidentDate, caseData.gaps);
   const f = useFilters(caseData.events);
@@ -31,14 +36,28 @@ export default function App() {
     requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
   };
 
+  if (!identity.name) {
+    return <Landing onEnter={identity.setName} />;
+  }
+
   return (
     <div className="min-h-screen bg-film text-ink">
+      <AnimatePresence>
+        {identity.justEntered && <Greeting name={identity.name} onDone={identity.acknowledgeGreeting} />}
+      </AnimatePresence>
+
       <header className="border-b border-ink/10 px-8 py-5 flex items-baseline gap-4">
         <h1 className="font-display text-3xl uppercase tracking-tight">
           CaseIQ
         </h1>
         <span className="font-mono text-xs text-graphite uppercase tracking-widest">
           Medical timeline &amp; case review
+        </span>
+        <span className="ml-auto font-mono text-xs text-graphite uppercase tracking-widest">
+          Hey, {identity.name} ·{" "}
+          <button type="button" onClick={identity.clear} className="underline hover:text-ink">
+            not you?
+          </button>
         </span>
         {caseData.parsed && (
           <button
