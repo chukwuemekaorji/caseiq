@@ -1,12 +1,36 @@
 {
   "name": "caseiq",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "type": "module",
   "scripts": {
-    "install:frontend": "npm install --prefix frontend",
-    "dev": "npm run dev --prefix frontend",
-    "build": "npm run build --prefix frontend",
-    "lint": "npm run lint --prefix frontend",
-    "preview": "npm run preview --prefix frontend"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "date-fns": "^4.4.0",
+    "drizzle-orm": "^0.45.2",
+    "framer-motion": "^12.42.2",
+    "lucide-react": "^1.26.0",
+    "next": "^16.2.11",
+    "pg": "^8.22.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@types/pg": "^8.20.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "autoprefixer": "^10.5.4",
+    "dotenv": "^17.4.2",
+    "drizzle-kit": "^0.31.10",
+    "postcss": "^8.5.22",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.9.3"
   }
 }

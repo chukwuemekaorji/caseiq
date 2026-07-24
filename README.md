@@ -1,74 +1,74 @@
 # CaseIQ
 
-CaseIQ is a browser-based medical chronology review tool for personal-injury case work. It accepts an Excel workbook, normalises the rows into a treatment timeline, highlights gaps and key moments, and can generate grounded AI summaries, Q&A, and a defense-style stress test. Everything runs locally in the browser except optional Claude API requests.
+CaseIQ is a legal case workspace for personal-injury attorneys, starting from a medical chronology timeline and growing toward the full case-story platform described in [docs/PRD.md](docs/PRD.md). It accepts an Excel workbook, normalises the rows into a treatment timeline, highlights gaps and key moments, and can generate grounded AI summaries, Q&A, and a defense-style stress test.
+
+This build (Priority 0 of the PRD's roadmap) focuses on making the existing chronology durable: imported cases now persist in a real database instead of living only in browser memory, and any rows the parser can't place on the timeline are reported explicitly instead of silently dropped.
 
 ## Structure
 
 ```
-/frontend   Vite + React app (the entire UI lives here)
-/backend    Shared server-side logic (the Anthropic client)
-/api        Thin Vercel serverless function entrypoints, imports from /backend
-vercel.json Wires Vercel's build to frontend/, keeps api/ as functions
+/app              Next.js App Router — pages and API routes
+  /api/import         POST — persists a parsed workbook (case, import batch, medical records, timeline events)
+  /api/cases/current   GET — hydrates the most recently created case (no case switcher yet — Priority 1)
+  /api/cases/[caseId]  PATCH — persists the confirmed incident date
+  /api/anthropic       POST — proxies AI requests, key never reaches the browser
+/db               Drizzle ORM schema + client (Postgres)
+/backend          Shared Anthropic-calling logic, used by the /api/anthropic route
+/lib              Excel parsing, event analysis, timeline geometry, AI prompt building — framework-agnostic
+/components       UI components (timeline, panels, exhibit view, landing)
+/hooks            useCaseData (now DB-backed), useAI, useFilters, useIdentity
+/types            Shared TypeScript types
 ```
-
-The split keeps the UI and the server logic independently scoped: `frontend/` never sees the Anthropic key, `backend/` holds the actual API-calling logic, and `api/` is just the Vercel-required routing shim on top of it. Add new endpoints by dropping a file in `api/` that imports whatever it needs from `backend/`.
-
-## What it does
-
-- Drop in an `.xlsx` or `.xls` medical chronology.
-- Review the parsed event table, trace, filters, and day details.
-- Switch to a presentation-safe exhibit view and export to PDF with print.
-- Optionally use Claude for story generation, key moments, Q&A, and stress testing.
 
 ## Local setup
 
-From the repo root:
+```bash
+npm install
+```
+
+You'll need a Postgres database. The easiest path is Vercel Postgres (Storage → Create Database → Postgres in the Vercel dashboard), which gives you a connection string. Put it in `.env.local`:
 
 ```bash
-npm run install:frontend
+DATABASE_URL=postgres://...
+```
+
+Then push the schema and start the dev server:
+
+```bash
+npm run db:push
 npm run dev
 ```
 
-Build for production with:
+Other scripts:
 
 ```bash
-npm run build
+npm run build        # production build
+npm run start         # run the production build locally
+npm run db:studio     # browse the database in Drizzle Studio
 ```
-
-Preview the production build locally with:
-
-```bash
-npm run preview
-```
-
-These root scripts just delegate into `frontend/` via `--prefix`, so you can also `cd frontend` and run the usual `npm install`, `npm run dev`, etc. directly.
 
 ## Claude API key
 
-CaseIQ uses a backend function for AI requests. The Claude key never goes into the browser.
+AI requests go through `/api/anthropic`, a server-side route. The Claude key never goes into the browser.
 
-Set the following Vercel environment variable on the project, for the **Production** environment specifically:
-
-- `ANTHROPIC_API_KEY`
-
-Use an Anthropic key that starts with `sk-ant-`. Adding or changing the variable does not affect deployments that already ran — trigger a new deployment afterward.
+Set `ANTHROPIC_API_KEY` as an environment variable — locally in `.env.local`, and in Vercel project settings for the **Production** environment. Use an Anthropic key that starts with `sk-ant-`. Adding or changing the variable does not affect deployments that already ran — trigger a new deployment afterward.
 
 ## Deployment
 
-This app is meant to be hosted on Vercel.
+This app is meant to be hosted on Vercel — it's a standard Next.js App Router project, so no custom build configuration is needed.
 
-### Vercel setup
+1. Push the repo to GitHub and import it into Vercel.
+2. Add a Postgres database from the Vercel dashboard (Storage tab) — this auto-injects the connection string as an env var.
+3. Add `ANTHROPIC_API_KEY` (Production environment).
+4. Run `npm run db:push` against the production database (or set up a migration step in CI) before the first deploy that needs it.
+5. Deploy.
 
-1. Push the repo to GitHub.
-2. Open Vercel and choose **Add New -> Project**.
-3. Import the GitHub repo. Keep the Root Directory as the repo root (not `frontend/`) — `vercel.json` at the root handles pointing the build at `frontend/` while keeping `api/` discoverable.
-4. Add the `ANTHROPIC_API_KEY` environment variable in Vercel project settings (Production environment).
-5. Deploy. Build command, output directory, and install command all come from `vercel.json`.
+## What's implemented vs. what's next
 
-The backend lives in the Vercel `api/` folder, so the browser only talks to your own `/api/anthropic` route. If you want to test the backend locally too, use `vercel dev` from the repo root so the function is available during development.
+See [docs/PRD.md](docs/PRD.md) for the full roadmap. This build covers Priority 0: import diagnostics and row-level provenance, and a chronology that survives a page refresh. Multi-case switching, client context, evidence, and the presentation builder are later priorities and not yet built.
 
 ## Notes
 
-- The project expects the `xlsx` package to parse medical workbooks.
-- Print / PDF export uses the browser print dialog and the print stylesheet in `frontend/src/index.css`.
+- The project expects the `xlsx` package to parse medical workbooks. Parsing still happens client-side — only the extracted structured fields (dates, providers, summaries) are sent to the server for persistence, not the file itself.
+- Print / PDF export uses the browser print dialog and the print stylesheet in `app/globals.css`.
 - If you change the UI or file parsing, run `npm run build` before deploying.

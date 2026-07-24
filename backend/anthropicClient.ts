@@ -5,7 +5,6 @@ export interface AnthropicCallOptions {
   system: string;
   user: string;
   json?: boolean;
-  temperature?: number;
 }
 
 export type AnthropicResult =
@@ -16,7 +15,6 @@ export async function callAnthropic({
   system,
   user,
   json = false,
-  temperature = 0.2,
 }: AnthropicCallOptions): Promise<AnthropicResult> {
   const key = process.env.ANTHROPIC_API_KEY!;
   const prefill = json ? "[" : null;
@@ -33,7 +31,6 @@ export async function callAnthropic({
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 2048,
-        temperature,
         system,
         messages: [
           { role: "user", content: user },
